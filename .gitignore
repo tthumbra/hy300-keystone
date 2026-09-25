@@ -16,3 +16,4 @@ ios/App/Info.plist
 app/signing.keystore
 app/frames*/
 app/test/node_modules/
+ios-build/
