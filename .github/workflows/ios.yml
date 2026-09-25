@@ -5,12 +5,18 @@ on:
     paths: ["ios/**", "app/assets/web/keystone.js", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
+permissions:
+  contents: write   # to publish releases
+
 jobs:
   build:
     runs-on: macos-15
     defaults:
       run:
         working-directory: ios
+    env:
+      VERSION: "0.1.${{ github.run_number }}"
+      BUILD: "${{ github.run_number }}"
     steps:
       - uses: actions/checkout@v4
 
@@ -22,10 +28,11 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
-      - name: Build (unsigned; Sideloadly signs it when installing)
+      - name: Build (unsigned; SideStore/Sideloadly sign it when installing)
         run: |
           xcodebuild -project KeystoneLiDAR.xcodeproj -scheme KeystoneLiDAR -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
 
       - name: Package .ipa
@@ -38,3 +45,15 @@ jobs:
         with:
           name: KeystoneLiDAR-ipa
           path: ios/KeystoneLiDAR.ipa
+
+      # SideStore source: add https://github.com/<owner>/<repo>/releases/latest/download/source.json
+      - name: Publish release with SideStore source
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="build-$BUILD"
+          URL="https://github.com/${{ github.repository }}/releases/download/$TAG/KeystoneLiDAR.ipa"
+          python3 tools/make-source.py KeystoneLiDAR.ipa "$VERSION" "$BUILD" "$URL" "${{ github.repository }}" source.json
+          gh release create "$TAG" KeystoneLiDAR.ipa source.json --title "Keystone $VERSION" --latest \
+            --notes "iPhone app build $BUILD. Install with SideStore by adding this source: https://github.com/${{ github.repository }}/releases/latest/download/source.json — or download KeystoneLiDAR.ipa for Sideloadly."

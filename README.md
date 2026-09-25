@@ -41,8 +41,14 @@ easily; it doesn't need to be held still.
 
 ## iPhone app (LiDAR)
 
-GitHub Actions builds an unsigned `KeystoneLiDAR.ipa` (see `.github/workflows/ios.yml`); download it from
-the run's artifacts and install it with Sideloadly. Open it and point it at the projector's QR code.
+GitHub Actions builds an unsigned `KeystoneLiDAR.ipa` and publishes it as a release (see
+`.github/workflows/ios.yml`). Either:
+
+- **SideStore:** add the source `https://github.com/tthumbra/hy300-keystone/releases/latest/download/source.json`
+  (Sources → +), then install **Keystone** from it. New builds show up as updates.
+- **Sideloadly:** download `KeystoneLiDAR.ipa` from the latest release and install it.
+
+Open the app and point it at the projector's QR code.
 
 ## Tests
 
