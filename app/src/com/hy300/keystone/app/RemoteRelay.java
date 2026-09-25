@@ -50,8 +50,13 @@ final class RemoteRelay {
                 + accept + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
         out.flush();
         sock.setSoTimeout(60_000);   // the phone pings every 15 s
+        String peer = String.valueOf(sock.getInetAddress());
+        Log.i(TAG, "remote opened from " + peer + " (" + req.headers.getOrDefault("user-agent", "?") + ")");
+        sendFrame(out, 0x1, "hello".getBytes(StandardCharsets.UTF_8));   // lets the phone confirm the path
 
         connectedPhones++;
+        int frames = 0, commands = 0;
+        String why = "closed by phone";
         AppState.phoneConnected();
         Socket helper = null;
         try {
@@ -68,13 +73,15 @@ final class RemoteRelay {
                 byte[] payload = new byte[(int) len];
                 din.readFully(payload);
                 for (int i = 0; i < payload.length; i++) payload[i] ^= mask[i & 3];
+                if (++frames <= 3) Log.i(TAG, "frame op=" + opcode + " fin=" + ((b0 & 0x80) != 0) + " len=" + len);
 
                 if (opcode == 0x8) {                       // close
                     sendFrame(out, 0x8, new byte[0]);
                     return;
                 } else if (opcode == 0x9) {                // ping
                     sendFrame(out, 0xA, payload);
-                } else if (opcode == 0x1) {                // text: commands
+                } else if (opcode == 0x1 || opcode == 0x0) { // text (or a continuation of it): commands
+                    commands++;
                     if (helper == null || helper.isClosed()) helper = openHelper();
                     try {
                         writeCommands(helper, payload);
@@ -85,7 +92,11 @@ final class RemoteRelay {
                     }
                 }
             }
+        } catch (IOException e) {
+            why = e.toString();
+            throw e;
         } finally {
+            Log.i(TAG, "remote from " + peer + " ended after " + frames + " frames, " + commands + " commands: " + why);
             connectedPhones--;
             if (helper != null) try { helper.close(); } catch (IOException ignored) {}
         }

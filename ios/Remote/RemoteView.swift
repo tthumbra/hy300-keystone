@@ -81,7 +81,12 @@ struct RemoteView: View {
     private var statusBar: some View {
         HStack {
             Circle().fill(statusColor).frame(width: 9, height: 9)
-            Text(statusText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(statusText).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                // Diagnostics while the remote is new: projector hello, commands sent, last error.
+                Text("\(remote.confirmed ? "projector ✓" : "no reply yet") · sent \(remote.sentCount)\(remote.lastError.isEmpty ? "" : " · " + remote.lastError)")
+                    .font(.caption2.monospacedDigit()).foregroundStyle(.tertiary).lineLimit(1)
+            }
             Spacer()
             Menu {
                 Button("Reconnect") { remote.connect() }

@@ -10,6 +10,10 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
 
     @Published private(set) var state = State.unpaired
     @Published private(set) var link: ProjectorLink?
+    /// Diagnostics shown in the Remote tab: did the projector's hello arrive, commands sent, last error.
+    @Published private(set) var confirmed = false
+    @Published private(set) var sentCount = 0
+    @Published private(set) var lastError = ""
 
     private var session: URLSession!
     private var task: URLSessionWebSocketTask?
@@ -29,10 +33,13 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
            let saved = try? JSONDecoder().decode(ProjectorLink.self, from: data) {
             link = saved
         }
-        // Coalesce pointer movement: at most ~120 messages a second.
-        flushTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
+        // Coalesce pointer movement: at most ~120 messages a second. In .common modes, because a plain
+        // scheduled timer is paused while a finger is moving (UI tracking), which held all moves back.
+        let t = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.flush() }
         }
+        RunLoop.main.add(t, forMode: .common)
+        flushTimer = t
     }
 
     // MARK: Pairing
@@ -68,6 +75,7 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
         guard let link else { state = .unpaired; return }
         disconnect()
         state = .connecting
+        confirmed = false
         var c = URLComponents(url: link.baseURL, resolvingAgainstBaseURL: false)!
         c.scheme = "wss"
         c.path = "/api/remote"
@@ -87,12 +95,19 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
         browser = nil
     }
 
-    /// Reads (and ignores) server messages so a closed socket is noticed.
+    /// Reads server messages ("hello" confirms the path) so a closed socket is noticed.
     private func receive(_ t: URLSessionWebSocketTask) {
         t.receive { [weak self] result in
             Task { @MainActor in
                 guard let self, t === self.task else { return }
-                if case .failure = result { self.connectionLost() } else { self.receive(t) }
+                switch result {
+                case .failure(let e):
+                    self.lastError = e.localizedDescription
+                    self.connectionLost()
+                case .success(let m):
+                    if case .string(let s) = m, s == "hello" { self.confirmed = true }
+                    self.receive(t)
+                }
             }
         }
     }
@@ -199,8 +214,15 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
     // MARK: Commands (see helper RemoteInput)
 
     func send(_ line: String) {
-        guard state == .connected, let task else { return }
-        task.send(.string(line)) { _ in }
+        guard state == .connected, let task else {
+            lastError = "not connected (\(state))"
+            return
+        }
+        sentCount += 1
+        task.send(.string(line)) { [weak self] error in
+            guard let error else { return }
+            Task { @MainActor in self?.lastError = "send: \(error.localizedDescription)" }
+        }
     }
 
     func move(_ dx: Double, _ dy: Double) { pendingMove.x += dx; pendingMove.y += dy }
