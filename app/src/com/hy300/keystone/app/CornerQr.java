@@ -20,11 +20,14 @@ import com.google.zxing.common.BitMatrix;
  * which the app grants itself through adb (see ServerService.startHelper).
  */
 final class CornerQr {
-    static final long SHOW_MS = 120_000;   // or until a phone connects
+    static final long SHOW_MS = 120_000;        // opened from the launcher; or until a phone connects
+    static final long BOOT_SHOW_MS = 300_000;   // after boot
     private static View shown;
     private static final Handler main = new Handler(Looper.getMainLooper());
 
-    static void show(Context ctx, String url) {
+    static void show(Context ctx, String url) { show(ctx, url, SHOW_MS); }
+
+    static void show(Context ctx, String url, long ms) {
         main.post(() -> {
             if (shown != null || url.isEmpty() || !Settings.canDrawOverlays(ctx)) return;
             WindowManager wm = ctx.getSystemService(WindowManager.class);
@@ -41,7 +44,7 @@ final class CornerQr {
             try {
                 wm.addView(v, lp);
                 shown = v;
-                main.postDelayed(() -> hide(ctx), SHOW_MS);
+                main.postDelayed(() -> hide(ctx), ms);
             } catch (Exception e) {
                 android.util.Log.w(ServerService.TAG, "overlay: " + e);
             }

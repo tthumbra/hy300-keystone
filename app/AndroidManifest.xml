@@ -35,7 +35,8 @@
         <service android:name=".ServerService" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:exported="true">
-            <intent-filter>
+            <!-- Boot broadcasts reach apps one at a time; high priority gets the pairing QR up sooner. -->
+            <intent-filter android:priority="1000">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>

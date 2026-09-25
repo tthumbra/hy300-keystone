@@ -6,6 +6,14 @@ struct RemoteView: View {
     @State private var keyboard = false
     @State private var dpad = false
     @State private var scanError = ""
+    @FocusState private var typing: Bool
+    /// Text box contents. Starts with an invisible character so Delete still does something (and is
+    /// seen) when the box looks empty.
+    @State private var typed = RemoteView.sentinel
+    static let sentinel = "\u{200B}"
+    /// Set when the app itself changes the box (reset after Return, restoring the invisible character),
+    /// so that change isn't sent as typing.
+    @State private var ownEdit = false
 
     // Android key codes.
     enum K {
@@ -72,10 +80,54 @@ struct RemoteView: View {
                 RemoteButton("speaker.plus", "Vol +") { remote.key(K.volUp) }
                 RemoteButton("playpause", "Play") { remote.key(K.playPause) }
             }
-            KeyCatcher(active: $keyboard, remote: remote).frame(width: 1, height: 1).opacity(0.01)
+            if keyboard { typingBar }
         }
         .padding()
         .onAppear { if remote.state != .connected { remote.connect() } }
+    }
+
+    /// Visible text box: whatever is typed is sent live; Delete and Return act on the projector.
+    private var typingBar: some View {
+        HStack {
+            TextField("Type — sent live to the projector", text: $typed)
+                .focused($typing)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.return)
+                .onSubmit {
+                    remote.key(66)                       // KEYCODE_ENTER
+                    setTyped(Self.sentinel)
+                    typing = true
+                }
+                .onChange(of: typed) { old, new in sendEdit(from: old, to: new) }
+                .padding(10)
+                .background(Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
+            Button("Done") { keyboard = false }
+        }
+        .onAppear { setTyped(Self.sentinel); typing = true }
+    }
+
+    private func setTyped(_ s: String) {
+        guard typed != s else { return }
+        ownEdit = true
+        typed = s
+    }
+
+    /// Turns a change in the text box into key presses: Delete for removed characters, then the new text.
+    private func sendEdit(from old: String, to new: String) {
+        if ownEdit { ownEdit = false; return }
+        guard old != new else { return }
+        if !new.hasPrefix(Self.sentinel) {                  // the invisible character was deleted
+            remote.key(67)                                 // KEYCODE_DEL
+            let restored = Self.sentinel + new
+            DispatchQueue.main.async { setTyped(restored) }
+            return
+        }
+        let a = Array(old), b = Array(new)
+        var p = 0
+        while p < a.count, p < b.count, a[p] == b[p] { p += 1 }
+        for _ in p..<a.count { remote.key(67) }
+        if p < b.count { remote.type(String(b[p...])) }
     }
 
     private var statusBar: some View {

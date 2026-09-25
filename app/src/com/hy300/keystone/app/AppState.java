@@ -20,6 +20,8 @@ final class AppState {
     static volatile long lastApiRequest = 0;
     /** Started at boot: show the corner QR once the server and helper are ready. */
     static volatile boolean bootQrPending = false;
+    /** The pending QR is the boot one (shown longer). */
+    static volatile boolean bootQrIsBoot = false;
     static volatile Runnable onPhoneConnected;
 
     static void phoneConnected() {

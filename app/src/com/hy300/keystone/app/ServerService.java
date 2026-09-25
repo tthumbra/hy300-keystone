@@ -61,6 +61,7 @@ public class ServerService extends Service {
                 .build());
 
         AppState.pairCode = pairCode(this);
+        SelfSignedCert.loadFingerprint(this);   // so the QR link can be built before HTTPS is up
         HelperClient.token = randomHex(16);
 
         running = true;
@@ -71,7 +72,10 @@ public class ServerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        if (intent != null && intent.getBooleanExtra("boot", false)) AppState.bootQrPending = true;
+        if (intent != null && intent.getBooleanExtra("boot", false)) {
+            AppState.bootQrPending = true;
+            AppState.bootQrIsBoot = true;
+        }
         return START_STICKY;
     }
 
@@ -147,7 +151,8 @@ public class ServerService extends Service {
             if (AppState.bootQrPending && !AppState.pairUrl.isEmpty()) {
                 AppState.bootQrPending = false;
                 AppState.onPhoneConnected = () -> CornerQr.hide(this);
-                CornerQr.show(this, AppState.pairUrl);
+                CornerQr.show(this, AppState.pairUrl, AppState.bootQrIsBoot ? CornerQr.BOOT_SHOW_MS : CornerQr.SHOW_MS);
+                AppState.bootQrIsBoot = false;
             }
             if (!up && System.currentTimeMillis() >= nextHelperAttempt) {
                 boolean started = startHelper();
@@ -158,7 +163,8 @@ public class ServerService extends Service {
                     && System.currentTimeMillis() - AppState.lastApiRequest > IDLE_BACK_TO_QR_MS) {
                 AppState.setMode(AppState.Mode.QR);
             }
-            SystemClock.sleep(up ? 3000 : 1000);
+            // Quick while a QR is waiting for the network (at boot), otherwise relaxed.
+            SystemClock.sleep(AppState.bootQrPending ? 500 : up ? 3000 : 1000);
         }
     }
 

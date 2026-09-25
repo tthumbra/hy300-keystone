@@ -23,6 +23,7 @@ public class MainActivity extends Activity implements AppState.Listener {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
         closeUnlessCalibrating();
     }
 
@@ -31,6 +32,9 @@ public class MainActivity extends Activity implements AppState.Listener {
      * way, e.g. from the launcher, it just shows the small pairing QR in a corner and goes away.
      */
     private void closeUnlessCalibrating() {
+        // From the launcher: always just the QR, even if a calibration was left open on the phone.
+        boolean fromLauncher = getIntent() != null && getIntent().hasCategory(Intent.CATEGORY_LAUNCHER);
+        if (fromLauncher && AppState.mode == AppState.Mode.PATTERN) AppState.setMode(AppState.Mode.QR);
         if (AppState.mode == AppState.Mode.PATTERN) return;
         AppState.bootQrPending = true;    // the server shows it now, or as soon as the link is ready
         finish();

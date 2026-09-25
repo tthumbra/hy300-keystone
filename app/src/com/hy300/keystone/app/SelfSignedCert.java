@@ -38,6 +38,18 @@ final class SelfSignedCert {
     /** SHA-256 of the certificate (hex), put in the QR link so the iOS app can pin exactly this cert. */
     static volatile String fingerprint = "";
 
+    /** Fingerprint of the saved certificate, read without loading the key (fast; for the QR at boot). */
+    static void loadFingerprint(Context ctx) {
+        try {
+            File certFile = new File(ctx.getFilesDir(), "tls.crt");
+            if (!certFile.exists() || !fingerprint.isEmpty()) return;
+            StringBuilder fp = new StringBuilder();
+            for (byte b : java.security.MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(certFile.toPath())))
+                fp.append(String.format("%02x", b));
+            fingerprint = fp.toString();
+        } catch (Exception ignored) {}
+    }
+
     static SSLContext sslContext(Context ctx, String ip) throws Exception {
         File keyFile = new File(ctx.getFilesDir(), "tls.pk8"), certFile = new File(ctx.getFilesDir(), "tls.crt");
         if (!keyFile.exists() || !certFile.exists()) create(ip, keyFile, certFile);
