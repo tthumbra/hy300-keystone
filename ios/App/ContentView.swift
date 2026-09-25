@@ -3,7 +3,10 @@ import KeystoneCore
 import SceneKit
 import SwiftUI
 
-struct ContentView: View {
+/// The Keystone tab: AR camera view and the calibration controls.
+struct CalibrateView: View {
+    @ObservedObject var remote: RemoteConnection
+    let active: Bool
     @StateObject private var cal = Calibrator()
 
     var body: some View {
@@ -26,7 +29,15 @@ struct ContentView: View {
             }
             .padding()
         }
-        .onAppear { cal.startAR() }
+        .onChange(of: active, initial: true) { _, isActive in
+            if isActive {
+                cal.onPaired = { remote.pair(with: $0) }
+                cal.startAR()
+                if let link = remote.link { cal.use(link) }
+            } else {
+                cal.leave()
+            }
+        }
     }
 
     private func updateViewport(_ size: CGSize) {

@@ -29,6 +29,8 @@ final class Calibrator: NSObject, ObservableObject, ARSessionDelegate {
     var interfaceOrientation: UIInterfaceOrientation = .portrait
 
     let session = ARSession()
+    /// Called when a QR code is scanned here, so the remote uses the same projector.
+    var onPaired: ((ProjectorLink) -> Void)?
     private var client: ProjectorClient?
     private var installmode = 0
     private var layout = Layout(installmode: 0)!
@@ -126,12 +128,34 @@ final class Calibrator: NSObject, ObservableObject, ARSessionDelegate {
             let texts = (request.results ?? []).compactMap(\.payloadStringValue)
             Task { @MainActor in
                 self.processing = false
-                if let link = texts.lazy.compactMap(ProjectorLink.init).first { self.connect(link) }
+                if let link = texts.lazy.compactMap(ProjectorLink.init).first {
+                    self.onPaired?(link)
+                    self.connect(link)
+                }
                 else if let t = texts.first, t.hasPrefix("https://"), !t.contains("fp=") {
                     self.status = "This QR code is from an older projector app — update the projector app."
                 }
             }
         }
+    }
+
+    /// Uses the already-paired projector (from the Remote tab) instead of scanning its QR code.
+    func use(_ link: ProjectorLink) {
+        guard stage == .scanQR else { return }
+        connect(link)
+    }
+
+    /// Leaving the Keystone tab: stop the camera and put the projector back to normal.
+    func leave() {
+        stopLoop(nil)
+        pingTask?.cancel()
+        if let client { Task { await client.done() } }
+        client = nil
+        stage = .scanQR
+        overlay = []
+        liveQuality = nil
+        session.pause()
+        status = "Point the camera at the QR code on the projector."
     }
 
     func rescan() {

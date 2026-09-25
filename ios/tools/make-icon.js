@@ -34,7 +34,7 @@ if (which === 'keystone') {
   }
   // green touch point
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (Math.hypot(x - 420, y - 560) < 95) set(x, y, green);
-  // white pointer arrow
+  // white pointer arrow (the remote icon isn't used since the apps were merged)
   const tri = [[560, 300], [560, 560], [748, 486]], stem = [[622, 505], [668, 610], [712, 590], [666, 486]];
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (inside(tri, x, y) || inside(stem, x, y)) set(x, y, white);
 }

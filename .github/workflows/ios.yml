@@ -28,29 +28,23 @@ jobs:
           brew install xcodegen
           xcodegen generate
 
-      - name: Build both apps (unsigned; SideStore/Sideloadly sign them when installing)
+      - name: Build (unsigned; SideStore/Sideloadly sign it when installing)
         run: |
-          for scheme in KeystoneLiDAR HY300Remote; do
-            xcodebuild -project KeystoneLiDAR.xcodeproj -scheme "$scheme" -configuration Release \
-              -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
-              MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
-              CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
-          done
+          xcodebuild -project HY300.xcodeproj -scheme HY300 -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
 
-      - name: Package .ipa files
+      - name: Package .ipa
         run: |
-          for app in KeystoneLiDAR HY300Remote; do
-            rm -rf Payload && mkdir Payload
-            cp -R "build/Build/Products/Release-iphoneos/$app.app" Payload/
-            zip -qry "$app.ipa" Payload
-          done
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/HY300.app Payload/
+          zip -qry HY300.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
           name: ipa
-          path: |
-            ios/KeystoneLiDAR.ipa
-            ios/HY300Remote.ipa
+          path: ios/HY300.ipa
 
       # SideStore source: add https://github.com/<owner>/<repo>/releases/latest/download/source.json
       - name: Publish release with SideStore source
@@ -60,5 +54,5 @@ jobs:
         run: |
           TAG="build-$BUILD"
           python3 tools/make-source.py "${{ github.repository }}" "$TAG" "$VERSION" "$BUILD" source.json
-          gh release create "$TAG" KeystoneLiDAR.ipa HY300Remote.ipa source.json --title "HY300 apps $VERSION" --latest \
-            --notes "iPhone apps build $BUILD: Keystone (calibration) and HY300 Remote. Install with SideStore by adding this source: https://github.com/${{ github.repository }}/releases/latest/download/source.json — or download the .ipa files for Sideloadly."
+          gh release create "$TAG" HY300.ipa source.json --title "HY300 $VERSION" --latest \
+            --notes "iPhone app build $BUILD (Remote + Keystone tabs). Install with SideStore by adding this source: https://github.com/${{ github.repository }}/releases/latest/download/source.json — or download HY300.ipa for Sideloadly."

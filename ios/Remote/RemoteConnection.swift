@@ -39,10 +39,15 @@ final class RemoteConnection: NSObject, ObservableObject, URLSessionWebSocketDel
 
     func pair(with text: String) -> Bool {
         guard let l = ProjectorLink(text) else { return false }
+        pair(with: l)
+        return true
+    }
+
+    func pair(with l: ProjectorLink) {
+        guard l != link || state != .connected else { return }
         save(l)
         failures = 0
         connect()
-        return true
     }
 
     func forget() {

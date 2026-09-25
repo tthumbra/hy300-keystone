@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes a SideStore/AltStore source (source.json) listing both apps of one build. Used by the GitHub
+"""Writes a SideStore/AltStore source (source.json) for one build of the app. Used by the GitHub
 workflow; the source is published on each release, so this URL always serves the newest one:
 https://github.com/<owner>/<repo>/releases/latest/download/source.json
 
@@ -18,31 +18,19 @@ notes = f"Build {build}. See https://github.com/{repo}/commits/main for changes.
 
 APPS = [
     {
-        "ipa": "KeystoneLiDAR.ipa",
-        "name": "Keystone",
+        "ipa": "HY300.ipa",
+        "name": "HY300",
+        # Same bundle ID as the earlier "Keystone" app, so SideStore updates that install.
         "bundleIdentifier": "io.github.hy300keystone.calibrate",
-        "subtitle": "Camera/LiDAR keystone calibration for the HY300",
-        "description": "Calibrates the keystone of a Magcubic HY300 projector. Point the phone at the QR code the "
-                       "projector app shows, then at the green picture: the app measures the picture on the wall in 3D "
-                       "(LiDAR where available) and adjusts the projector until the picture is rectangular.",
+        "subtitle": "Phone remote and keystone calibration for the HY300",
+        "description": "For the Magcubic HY300 projector. Remote: a trackpad with a real mouse pointer, your phone's "
+                       "keyboard, and Back, Home, volume and media keys, over Wi-Fi. Keystone: measures the picture on "
+                       "the wall in 3D (LiDAR where available) and adjusts the projector until it's rectangular. Pair "
+                       "once by scanning the QR code the projector shows in a corner.",
         "icon": f"{raw}/App/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
         "privacy": {
-            "NSCameraUsageDescription": "The camera finds the projected picture and measures it on the wall.",
-            "NSLocalNetworkUsageDescription": "Talks to the projector on your Wi-Fi to adjust its keystone.",
-        },
-    },
-    {
-        "ipa": "HY300Remote.ipa",
-        "name": "HY300 Remote",
-        "bundleIdentifier": "io.github.hy300keystone.remote",
-        "subtitle": "Use your phone as the projector's mouse and keyboard",
-        "description": "Controls a Magcubic HY300 projector over Wi-Fi: a trackpad with a real mouse pointer, your "
-                       "phone's keyboard for typing, and Back, Home, volume and media keys. Pair once by scanning the "
-                       "QR code the projector shows in a corner when it starts.",
-        "icon": f"{raw}/Remote/Assets.xcassets/AppIcon.appiconset/icon-1024.png",
-        "privacy": {
-            "NSCameraUsageDescription": "The camera scans the pairing QR code shown by the projector.",
-            "NSLocalNetworkUsageDescription": "Controls the projector on your Wi-Fi.",
+            "NSCameraUsageDescription": "The camera scans the projector's pairing QR code and measures the projected picture on the wall.",
+            "NSLocalNetworkUsageDescription": "Controls the projector and adjusts its keystone over your Wi-Fi.",
         },
     },
 ]
