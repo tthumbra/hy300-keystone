@@ -95,16 +95,31 @@ struct RemoteView: View {
                 .autocorrectionDisabled()
                 .submitLabel(.return)
                 .onSubmit {
-                    remote.key(66)                       // KEYCODE_ENTER
+                    remote.key(66)                       // KEYCODE_ENTER, e.g. runs the search
                     setTyped(Self.sentinel)
-                    typing = true
+                    closeKeyboard()
                 }
                 .onChange(of: typed) { old, new in sendEdit(from: old, to: new) }
                 .padding(10)
                 .background(Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-            Button("Done") { keyboard = false }
+            Button("Done") { closeKeyboard() }
         }
-        .onAppear { setTyped(Self.sentinel); typing = true }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Hide keyboard") { closeKeyboard() }
+            }
+        }
+        .onAppear {
+            setTyped(Self.sentinel)
+            // Focus a moment after the box appears; setting it straight away is often ignored.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { typing = true }
+        }
+    }
+
+    private func closeKeyboard() {
+        typing = false
+        keyboard = false
     }
 
     private func setTyped(_ s: String) {
