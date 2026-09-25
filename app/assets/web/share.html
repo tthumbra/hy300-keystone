@@ -42,7 +42,7 @@
   <div class="card hidden" id="shareCard">
     <div class="row" style="justify-content:space-between">
       <label>Optimise for
-        <select id="mode"><option value="motion">Video (smooth)</option><option value="detail">Text (sharp)</option></select>
+        <select id="mode"><option value="detail">Sharp (text, websites)</option><option value="motion">Smooth (video)</option></select>
       </label>
       <div class="row">
         <button id="shareBtn">Share</button>
@@ -155,7 +155,7 @@
       .then(function () { return iceComplete(pc); })
       .then(function () { return api('/api/share/offer', { sdp: pc.localDescription.sdp }); })
       .then(function (r) { session = r.session; return waitForAnswer(r.session); })
-      .then(function (sdp) { return pc.setRemoteDescription({ type: 'answer', sdp: sdp }); })
+      .then(function (sdp) { return pc.setRemoteDescription({ type: 'answer', sdp: boostBitrate(sdp) }); })
       .then(tuneSender)
       .catch(function (e) { status('Could not share: ' + e.message, 'bad'); stop(); });
   }
@@ -172,16 +172,48 @@
     })();
   }
 
+  // Home Wi-Fi has bandwidth to spare, so don't let WebRTC start low and trade resolution away:
+  // keep the full 1280x720 and a high bitrate from the first frame.
+  // No practical cap: 100 Mbps is far above what a 720p stream uses, so Wi-Fi is the only limit. (With
+  // no cap at all, Chrome falls back to its own ~2.5 Mbps default for 720p.)
+  var KBPS = { detail: { min: 10000, start: 20000, max: 100000 }, motion: { min: 10000, start: 20000, max: 100000 } };
+
   function tuneSender() {
+    var mode = $('mode').value;
     pc.getSenders().forEach(function (sender) {
       if (!sender.track || sender.track.kind !== 'video') return;
       var p = sender.getParameters();
       if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-      p.encodings[0].maxBitrate = 6000000;
+      p.encodings[0].maxBitrate = KBPS[mode].max * 1000;
       p.encodings[0].maxFramerate = 30;
-      p.degradationPreference = $('mode').value === 'detail' ? 'maintain-resolution' : 'balanced';
+      p.encodings[0].scaleResolutionDownBy = 1;
+      p.degradationPreference = 'maintain-resolution';
       sender.setParameters(p).catch(function () {});
     });
+  }
+
+  /** Adds bitrate hints to the video codecs in the projector's answer (Chrome/Edge read these). */
+  function boostBitrate(sdp) {
+    var k = KBPS[$('mode').value];
+    var hint = 'x-google-min-bitrate=' + k.min + ';x-google-start-bitrate=' + k.start + ';x-google-max-bitrate=' + k.max;
+    var lines = sdp.split('\r\n'), out = [], inVideo = false, videoPts = {}, haveFmtp = {};
+    lines.forEach(function (l) {
+      var m = /^a=rtpmap:(\d+) (H264|VP8|VP9|AV1)\//i.exec(l);
+      if (m) videoPts[m[1]] = true;
+    });
+    lines.forEach(function (l) {
+      if (/^m=/.test(l)) inVideo = /^m=video/.test(l);
+      var f = /^a=fmtp:(\d+) (.*)$/.exec(l);
+      if (inVideo && f && videoPts[f[1]]) { l = 'a=fmtp:' + f[1] + ' ' + f[2] + ';' + hint; haveFmtp[f[1]] = true; }
+      out.push(l);
+      if (inVideo && /^c=/.test(l)) out.push('b=AS:' + k.max);
+      var r = /^a=rtpmap:(\d+) /.exec(l);
+      if (inVideo && r && videoPts[r[1]] && !haveFmtp[r[1]] && !sdp.match(new RegExp('a=fmtp:' + r[1] + ' '))) {
+        out.push('a=fmtp:' + r[1] + ' ' + hint);   // codecs without an fmtp line (e.g. VP8)
+        haveFmtp[r[1]] = true;
+      }
+    });
+    return out.join('\r\n');
   }
 
   function stop() {
