@@ -14,6 +14,8 @@ public class BootReceiver extends BroadcastReceiver {
         String a = intent.getAction();
         if (Intent.ACTION_BOOT_COMPLETED.equals(a)) {
             ctx.startForegroundService(new Intent(ctx, ServerService.class).putExtra("boot", true));
+            // Startup screen; allowed from the background because the app has the overlay permission.
+            ctx.startActivity(new Intent(ctx, BootIntroActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } else if (Intent.ACTION_MY_PACKAGE_REPLACED.equals(a)) {
             ctx.startForegroundService(new Intent(ctx, ServerService.class));
         }

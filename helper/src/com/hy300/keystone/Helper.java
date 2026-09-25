@@ -121,6 +121,8 @@ public final class Helper {
             }
             if (method.equals("GET") && path.equals("/health")) {
                 out = new JSONObject().put("ok", true).put("version", VERSION);
+            } else if (method.equals("GET") && path.equals("/bootinfo")) {
+                out = bootInfo().put("ok", true);
             } else if (method.equals("GET") && path.equals("/state")) {
                 out = state().put("ok", true);
             } else if (method.equals("POST") && path.equals("/apply")) {
@@ -176,6 +178,34 @@ public final class Helper {
         o.put("mode", Integer.parseInt(prop("persist.sys.keystone.console.height", "0")));
         o.put("installmode", Integer.parseInt(prop("persist.sys.installmode", "0")));
         return o;
+    }
+
+    /**
+     * What the startup screen shows (needs shell to read): Android services that are running this boot
+     * (init.svc.*) and the last lines of the kernel log.
+     */
+    static JSONObject bootInfo() throws Exception {
+        org.json.JSONArray services = new org.json.JSONArray();
+        for (String line : sh("getprop").split("\n")) {
+            // [init.svc.surfaceflinger]: [running]
+            if (!line.startsWith("[init.svc.")) continue;
+            int end = line.indexOf(']');
+            if (end < 0) continue;
+            String name = line.substring(10, end);
+            String state = line.substring(line.lastIndexOf('[') + 1, line.length() - 1);
+            services.put(new JSONObject().put("name", name).put("state", state));
+        }
+        org.json.JSONArray kernel = new org.json.JSONArray();
+        // The kernel's own startup log (right after boot it still starts at "Booting Linux...").
+        int n = 0;
+        for (String line : sh("dmesg").split("\n")) {
+            String l = line.trim();
+            if (l.isEmpty() || l.contains("avc:") || l.contains("audit(")) continue;
+            kernel.put(l.length() > 110 ? l.substring(0, 110) : l);
+            if (++n >= 120) break;
+        }
+        return new JSONObject().put("services", services).put("kernel", kernel)
+                .put("uptime", sh("cat /proc/uptime").trim());
     }
 
     static JSONObject apply(JSONObject req) throws Exception {

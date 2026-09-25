@@ -17,6 +17,12 @@ public class MainActivity extends Activity implements AppState.Listener {
         view = new ScreenView(this);
         setContentView(view);
         startForegroundService(new Intent(this, ServerService.class));
+        // Replays the startup screen: am start -n com.hy300.keystone.app/.MainActivity --ez intro true
+        if (getIntent().getBooleanExtra("intro", false)) {
+            startActivity(new Intent(this, BootIntroActivity.class));
+            finish();
+            return;
+        }
         closeUnlessCalibrating();
     }
 

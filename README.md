@@ -58,6 +58,21 @@ that the phone reconnects by itself, even if the projector's IP changes (it's fo
 certificate). The mouse is a virtual USB mouse created by the helper through `/dev/uhid`, so Android shows
 a normal pointer; typing and keys are injected key events.
 
+## Startup screen
+
+Right after boot the projector app plays a startup screen ("Tanish Thumbraguddi's Home Server"): the real
+kernel startup log and Android services (read by the shell helper), this app's services, then
+"Welcome Tanish!". Any key skips it. The stock boot logo before it lives on a read-only partition and
+can't be changed without root. Replay: `adb shell am start -n com.hy300.keystone.app/.MainActivity --ez intro true`.
+
+## Screen sharing and casting
+
+- **Laptop screen:** open `http://<projector-ip>:8080/share` in Chrome or Edge, pair once with the PIN the
+  projector shows, then Share a tab, window or the whole screen (WebRTC, H.264, up to 720p30).
+- **Kodi** (installed separately) has its UPnP/DLNA renderer and AirPlay receiver turned on, as
+  "HY300 Projector": Windows' *Cast to Device* works while Kodi is running. Real Google Cast needs a
+  Google-certified device and can't be added.
+
 ## Tests
 
 ```sh
