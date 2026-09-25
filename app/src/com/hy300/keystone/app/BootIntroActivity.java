@@ -71,7 +71,8 @@ public class BootIntroActivity extends Activity {
         }
     }
 
-    private static final int FG = 0xFFC8C8C8, DIM = 0xFF7A7A7A, LIVE = 0xFF6E8C9E, OK = 0xFF4CAF50, WARN = 0xFFE0B040;
+    // Green terminal: main text, older/dim lines, the live log, OK tags, warnings.
+    private static final int FG = 0xFF3DFF7A, DIM = 0xFF1F9A4A, LIVE = 0xFF2BC862, OK = 0xFFB6FFCB, WARN = 0xFFE0D040;
 
     final class IntroView extends View {
         private final Paint text = new Paint(Paint.ANTI_ALIAS_FLAG), big = new Paint(Paint.ANTI_ALIAS_FLAG), fill = new Paint();
@@ -88,9 +89,8 @@ public class BootIntroActivity extends Activity {
 
         IntroView(Context c) {
             super(c);
-            Typeface mono = Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL);
-            text.setTypeface(mono);
-            big.setTypeface(mono);
+            text.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
+            big.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));   // wide bold mono
             big.setTextAlign(Paint.Align.CENTER);
             phaseStart = SystemClock.uptimeMillis();
         }
@@ -192,17 +192,21 @@ public class BootIntroActivity extends Activity {
                 if (now - phaseStart > 700) { phase = 3; phaseStart = now; }
             } else {                                            // Welcome!
                 long p = now - phaseStart;
-                big.setTextSize(H * 0.14f);
+                big.setTextSize(H * 0.16f);
                 // Screen glitch as it appears (and a short hiccup after), then steady.
                 float strength = p < 550 ? 1 - p / 550f : (p > 1500 && p < 1620) ? 0.35f : 0;
                 if (strength > 0) drawGlitched(c, W, H, "Welcome!", H * 0.52f, strength);
                 else {
-                    big.setColor(Color.WHITE);
+                    big.setColor(FG);
+                    big.setShadowLayer(H * 0.025f, 0, 0, 0xB03DFF7A);    // soft glow
                     c.drawText("Welcome!", W / 2f, H * 0.52f, big);
+                    big.setShadowLayer(0, 0, 0, 0);
                 }
                 big.setTextSize(H * 0.028f);
                 big.setColor(DIM);
+                big.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.NORMAL));
                 c.drawText("Tanish Thumbraguddi's Custom Loader", W / 2f, H * 0.94f, big);
+                big.setTypeface(Typeface.create(Typeface.MONOSPACE, Typeface.BOLD));
                 if (p > 2600) { finish(); return; }
             }
             postInvalidateOnAnimation();
@@ -221,7 +225,7 @@ public class BootIntroActivity extends Activity {
                 c.drawText(s, W / 2f + dx - fringe, y, big);
                 big.setColor(0xB430E0FF);
                 c.drawText(s, W / 2f + dx + fringe, y, big);
-                big.setColor(Color.WHITE);
+                big.setColor(FG);
                 c.drawText(s, W / 2f + dx, y, big);
                 c.restore();
             }
