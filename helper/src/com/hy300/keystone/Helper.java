@@ -121,6 +121,11 @@ public final class Helper {
             }
             if (method.equals("GET") && path.equals("/health")) {
                 out = new JSONObject().put("ok", true).put("version", VERSION);
+            } else if (method.equals("GET") && path.startsWith("/livelog")) {
+                long after = -1;
+                int q = requestLine.indexOf("after=");
+                if (q >= 0) try { after = Long.parseLong(requestLine.substring(q + 6).split("[ &]")[0]); } catch (NumberFormatException ignored) {}
+                out = LiveLog.since(after).put("ok", true);
             } else if (method.equals("GET") && path.equals("/bootinfo")) {
                 out = bootInfo().put("ok", true);
             } else if (method.equals("GET") && path.equals("/state")) {
