@@ -290,7 +290,7 @@ public class ServerService extends Service {
         String route = req.method + " " + req.path;
         switch (route) {
             case "POST /api/session": {
-                AppState.setMode(AppState.Mode.PATTERN);
+                showPattern();
                 DisplayMetrics m = new DisplayMetrics();
                 getSystemService(WindowManager.class).getDefaultDisplay().getRealMetrics(m);
                 JSONObject out = new JSONObject()
@@ -307,7 +307,7 @@ public class ServerService extends Service {
             }
             case "POST /api/pattern": {
                 boolean show = new JSONObject(new String(req.body, StandardCharsets.UTF_8)).optBoolean("show", true);
-                AppState.setMode(show ? AppState.Mode.PATTERN : AppState.Mode.QR);
+                if (show) showPattern(); else AppState.setMode(AppState.Mode.QR);
                 return Response.json(200, new JSONObject().put("ok", true));
             }
             case "GET /api/layout":
@@ -491,6 +491,13 @@ public class ServerService extends Service {
             for (int i = 0; i < files.length - 400; i++) files[i].delete();
         }
         return base;
+    }
+
+    /** Brings up the calibration pattern (allowed from the background: the app has the overlay permission). */
+    private void showPattern() {
+        AppState.setMode(AppState.Mode.PATTERN);
+        CornerQr.hide(this);
+        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     }
 
     /** Remembered layouts: {"<installmode>": {"flipX": bool, "flipY": bool}}. */

@@ -17,11 +17,23 @@ public class MainActivity extends Activity implements AppState.Listener {
         view = new ScreenView(this);
         setContentView(view);
         startForegroundService(new Intent(this, ServerService.class));
-        // For testing the boot overlay: am start -n com.hy300.keystone.app/.MainActivity --ez corner_qr true
-        if (getIntent().getBooleanExtra("corner_qr", false)) {
-            AppState.bootQrPending = true;
-            finish();
-        }
+        closeUnlessCalibrating();
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        closeUnlessCalibrating();
+    }
+
+    /**
+     * This screen is only for the calibration pattern (a phone's /api/session opens it). Opened any other
+     * way, e.g. from the launcher, it just shows the small pairing QR in a corner and goes away.
+     */
+    private void closeUnlessCalibrating() {
+        if (AppState.mode == AppState.Mode.PATTERN) return;
+        AppState.bootQrPending = true;    // the server shows it now, or as soon as the link is ready
+        finish();
     }
 
     @Override
@@ -41,6 +53,7 @@ public class MainActivity extends Activity implements AppState.Listener {
 
     @Override
     public void onStateChanged() {
+        if (AppState.mode != AppState.Mode.PATTERN) { finish(); return; }   // calibration ended
         view.invalidate();
     }
 
