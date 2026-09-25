@@ -20,7 +20,7 @@ import com.google.zxing.common.BitMatrix;
  * which the app grants itself through adb (see ServerService.startHelper).
  */
 final class CornerQr {
-    static final long SHOW_MS = 30_000;
+    static final long SHOW_MS = 120_000;   // or until a phone connects
     private static View shown;
     private static final Handler main = new Handler(Looper.getMainLooper());
 

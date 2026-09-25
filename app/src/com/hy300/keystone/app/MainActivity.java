@@ -17,6 +17,11 @@ public class MainActivity extends Activity implements AppState.Listener {
         view = new ScreenView(this);
         setContentView(view);
         startForegroundService(new Intent(this, ServerService.class));
+        // For testing the boot overlay: am start -n com.hy300.keystone.app/.MainActivity --ez corner_qr true
+        if (getIntent().getBooleanExtra("corner_qr", false)) {
+            AppState.bootQrPending = true;
+            finish();
+        }
     }
 
     @Override

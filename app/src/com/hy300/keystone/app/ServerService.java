@@ -143,7 +143,8 @@ public class ServerService extends Service {
                 if (up) AppState.helperStatus = "running";
                 AppState.changed();
             }
-            if (up && AppState.bootQrPending && !AppState.pairUrl.isEmpty()) {
+            // Show as soon as the link exists; the helper (needed for the remote to act) follows shortly.
+            if (AppState.bootQrPending && !AppState.pairUrl.isEmpty()) {
                 AppState.bootQrPending = false;
                 AppState.onPhoneConnected = () -> CornerQr.hide(this);
                 CornerQr.show(this, AppState.pairUrl);
