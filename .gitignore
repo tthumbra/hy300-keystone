@@ -1,0 +1,18 @@
+# Local toolchains (JDK, Android build tools, Node, Swift, gh)
+.tools/
+
+# Build output
+app/out/
+helper/out/
+ios/.build/
+ios/build/
+ios/Payload/
+ios/*.ipa
+ios/*.xcodeproj/
+ios/App/Info.plist
+*.apk
+
+# Private: the app's signing key, and camera frames of the room shared while debugging
+app/signing.keystore
+app/frames*/
+app/test/node_modules/

@@ -1,0 +1,43 @@
+# XcodeGen spec for the iOS app (the .xcodeproj is generated in CI: `xcodegen generate`).
+name: KeystoneLiDAR
+options:
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  KeystoneCore:
+    path: .
+targets:
+  KeystoneLiDAR:
+    type: application
+    platform: iOS
+    sources: [App]
+    dependencies:
+      - package: KeystoneCore
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Keystone
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIRequiredDeviceCapabilities: [arkit]
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSCameraUsageDescription: The camera finds the projected picture and measures it on the wall.
+        NSLocalNetworkUsageDescription: Talks to the projector on your Wi-Fi to adjust its keystone.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.hy300keystone.calibrate
+        MARKETING_VERSION: "0.1"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
