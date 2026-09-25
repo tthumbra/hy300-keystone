@@ -41,6 +41,11 @@ public class MainActivity extends Activity implements AppState.Listener {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        // Menu: new pairing code (phones paired before must scan again).
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            ServerService.resetPairing(this);
+            return true;
+        }
         // Remote: OK toggles QR <-> pattern (handy for checking the pattern by eye).
         if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER) {
             AppState.setMode(AppState.mode == AppState.Mode.QR ? AppState.Mode.PATTERN : AppState.Mode.QR);
@@ -51,7 +56,7 @@ public class MainActivity extends Activity implements AppState.Listener {
 
     @Override
     public void onBackPressed() {
-        stopService(new Intent(this, ServerService.class));
+        // The server keeps running (phone remote); only the screen closes.
         AppState.setMode(AppState.Mode.QR);
         finish();
     }

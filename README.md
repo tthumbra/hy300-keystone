@@ -12,7 +12,7 @@ the result (including after a restart) like any keystone set from its menu.
 | `app/` | Projector app (Java, no Gradle). Shows a QR code, then the calibration pattern; serves the phone web page and API over HTTPS with a self-signed certificate it makes itself. |
 | `helper/` | Runs on the projector as the `shell` user (`app_process`), started by the app through the projector's own adb on `127.0.0.1:5555`. Applies keystone values by writing `persist.display.keystone_*` and nudging ControlCenter's 4-corner screen, which is the only thing allowed to push them to SurfaceFlinger. |
 | `app/assets/web/` | Phone web page (any phone, no install): live camera + motion sensors, finds the picture, corrects in a level virtual camera. |
-| `ios/` | Optional iPhone app (SwiftUI + ARKit): measures the picture's corners on the wall in 3D with LiDAR, so the phone's angle doesn't matter. |
+| `ios/` | iPhone apps: **Keystone** (SwiftUI + ARKit) measures the picture's corners on the wall in 3D with LiDAR, so the phone's angle doesn't matter; **HY300 Remote** turns the phone into a trackpad, keyboard and remote. |
 | `MAPPING.md` | How the 8 keystone values map to corners, per projection mode. |
 
 The maths (`app/assets/web/keystone.js`, ported to Swift in `ios/Sources/KeystoneCore`) works for every
@@ -45,10 +45,18 @@ GitHub Actions builds an unsigned `KeystoneLiDAR.ipa` and publishes it as a rele
 `.github/workflows/ios.yml`). Either:
 
 - **SideStore:** add the source `https://github.com/tthumbra/hy300-keystone/releases/latest/download/source.json`
-  (Sources → +), then install **Keystone** from it. New builds show up as updates.
-- **Sideloadly:** download `KeystoneLiDAR.ipa` from the latest release and install it.
+  (Sources → +), then install **Keystone** and/or **HY300 Remote** from it. New builds show up as updates.
+- **Sideloadly:** download `KeystoneLiDAR.ipa` / `HY300Remote.ipa` from the latest release and install them.
 
 Open the app and point it at the projector's QR code.
+
+## Phone remote
+
+The projector app starts at boot and shows a small pairing QR in the bottom-right corner for 30 seconds.
+Scan it once with **HY300 Remote** (same SideStore source as above); after that the phone reconnects by
+itself, even if the projector's IP changes (it's found on the Wi-Fi by its certificate). The mouse is a
+virtual USB mouse created by the helper through `/dev/uhid`, so Android shows a normal pointer; typing
+and keys are injected key events. Menu on the projector app's QR screen makes a new pairing code.
 
 ## Tests
 

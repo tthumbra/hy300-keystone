@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
 import android.os.IBinder;
@@ -59,7 +60,7 @@ public class ServerService extends Service {
                 .setSmallIcon(android.R.drawable.ic_menu_manage)
                 .build());
 
-        AppState.pairCode = randomHex(6);
+        AppState.pairCode = pairCode(this);
         HelperClient.token = randomHex(16);
 
         running = true;
@@ -69,7 +70,15 @@ public class ServerService extends Service {
     }
 
     @Override
+    public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getBooleanExtra("boot", false)) AppState.bootQrPending = true;
+        return START_STICKY;
+    }
+
+    @Override
     public void onDestroy() {
+        unregisterNsd();
+        CornerQr.hide(this);
         running = false;
         closeQuietly(https);
         closeQuietly(http);
@@ -86,6 +95,7 @@ public class ServerService extends Service {
             String ip;
             while ((ip = lanAddress()) == null && running) SystemClock.sleep(1000);
             https = SelfSignedCert.sslContext(this, ip).getServerSocketFactory().createServerSocket(HTTPS_PORT);
+            registerNsd();
             acceptLoop(https, true);
         } catch (Exception e) {
             Log.e(TAG, "https server failed", e);
@@ -133,6 +143,11 @@ public class ServerService extends Service {
                 if (up) AppState.helperStatus = "running";
                 AppState.changed();
             }
+            if (up && AppState.bootQrPending && !AppState.pairUrl.isEmpty()) {
+                AppState.bootQrPending = false;
+                AppState.onPhoneConnected = () -> CornerQr.hide(this);
+                CornerQr.show(this, AppState.pairUrl);
+            }
             if (!up && System.currentTimeMillis() >= nextHelperAttempt) {
                 boolean started = startHelper();
                 nextHelperAttempt = System.currentTimeMillis() + (started ? 5_000 : 20_000);
@@ -156,6 +171,8 @@ public class ServerService extends Service {
             // The launching shell must stay up a few seconds: if it exits (and adb closes the stream)
             // while app_process is still starting, the helper dies.
             adb.shell("pkill -f '[c]om.hy300.keystone.Helper'; true", 5000);
+            // Lets the app show the pairing QR over other apps at boot.
+            adb.shell("appops set " + getPackageName() + " SYSTEM_ALERT_WINDOW allow; true", 5000);
             adb.shell("CLASSPATH=" + apk + " setsid nohup app_process /system/bin com.hy300.keystone.Helper"
                     + " --token " + HelperClient.token
                     + " >/data/local/tmp/ks-helper.log 2>&1 </dev/null & sleep 3; true", 10000);
@@ -228,6 +245,14 @@ public class ServerService extends Service {
             s.setSoTimeout(15000);
             Request req = parse(s.getInputStream());
             if (req == null) return;
+            if (secure && RemoteRelay.isUpgrade(req)) {
+                if (!MessageDigest.isEqual(req.param("k").getBytes(), AppState.pairCode.getBytes())) {
+                    write(s.getOutputStream(), Response.error(401, "bad pairing code"));
+                    return;
+                }
+                RemoteRelay.run(s, req);
+                return;
+            }
             Response res;
             try {
                 res = secure ? route(req) : redirect(req);
@@ -478,6 +503,56 @@ public class ServerService extends Service {
             }
         }
         return out;
+    }
+
+    /** The pairing code is kept, so a phone pairs once; the Menu key on the QR screen makes a new one. */
+    static String pairCode(Context ctx) {
+        android.content.SharedPreferences p = ctx.getSharedPreferences("pairing", MODE_PRIVATE);
+        String code = p.getString("code", null);
+        if (code == null) {
+            code = randomHex(6);
+            p.edit().putString("code", code).apply();
+        }
+        return code;
+    }
+
+    static void resetPairing(Context ctx) {
+        String code = randomHex(6);
+        ctx.getSharedPreferences("pairing", MODE_PRIVATE).edit().putString("code", code).apply();
+        AppState.pairCode = code;
+        AppState.pairUrl = "";      // the watchdog rebuilds the link with the new code
+        AppState.changed();
+    }
+
+    // ---------------------------------------------------------------- network discovery
+
+    private android.net.nsd.NsdManager.RegistrationListener nsdListener;
+
+    /** Advertises _hykeystone._tcp so a paired phone finds the projector again if its IP changes. */
+    private void registerNsd() {
+        try {
+            android.net.nsd.NsdServiceInfo info = new android.net.nsd.NsdServiceInfo();
+            info.setServiceName("HY300 Projector");
+            info.setServiceType("_hykeystone._tcp");
+            info.setPort(HTTPS_PORT);
+            info.setAttribute("fp", SelfSignedCert.fingerprint);
+            nsdListener = new android.net.nsd.NsdManager.RegistrationListener() {
+                @Override public void onRegistrationFailed(android.net.nsd.NsdServiceInfo s, int e) { Log.w(TAG, "nsd failed " + e); }
+                @Override public void onUnregistrationFailed(android.net.nsd.NsdServiceInfo s, int e) {}
+                @Override public void onServiceRegistered(android.net.nsd.NsdServiceInfo s) { Log.i(TAG, "nsd registered " + s.getServiceName()); }
+                @Override public void onServiceUnregistered(android.net.nsd.NsdServiceInfo s) {}
+            };
+            getSystemService(android.net.nsd.NsdManager.class).registerService(info, android.net.nsd.NsdManager.PROTOCOL_DNS_SD, nsdListener);
+        } catch (Exception e) {
+            Log.w(TAG, "nsd", e);
+        }
+    }
+
+    private void unregisterNsd() {
+        try {
+            if (nsdListener != null) getSystemService(android.net.nsd.NsdManager.class).unregisterService(nsdListener);
+        } catch (Exception ignored) {}
+        nsdListener = null;
     }
 
     static String randomHex(int bytes) {

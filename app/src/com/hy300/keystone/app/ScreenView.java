@@ -78,7 +78,7 @@ final class ScreenView extends View {
         text.setColor(Color.WHITE);
     }
 
-    private static BitMatrix encode(String s) {
+    static BitMatrix encode(String s) {
         try {
             Map<EncodeHintType, Object> hints = new EnumMap<>(EncodeHintType.class);
             hints.put(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M);

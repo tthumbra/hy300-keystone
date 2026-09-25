@@ -18,6 +18,14 @@ final class AppState {
     static volatile String helperStatus = "starting…";
     static volatile boolean applying = false;
     static volatile long lastApiRequest = 0;
+    /** Started at boot: show the corner QR once the server and helper are ready. */
+    static volatile boolean bootQrPending = false;
+    static volatile Runnable onPhoneConnected;
+
+    static void phoneConnected() {
+        Runnable r = onPhoneConnected;
+        if (r != null) r.run();
+    }
 
     private static final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
     private static final Handler main = new Handler(Looper.getMainLooper());

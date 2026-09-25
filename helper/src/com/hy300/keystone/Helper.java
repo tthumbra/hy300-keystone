@@ -76,6 +76,7 @@ public final class Helper {
         inputManager = imClass.getMethod("getInstance").invoke(null);
         inject = imClass.getMethod("injectInputEvent", InputEvent.class, int.class);
 
+        if (!token.isEmpty()) RemoteInput.start(token);   // phone-as-remote input, relayed by the app
         ServerSocket server = new ServerSocket(port, 8, InetAddress.getByName("127.0.0.1"));
         log("listening on 127.0.0.1:" + port + " state=" + state());
         while (true) {
@@ -299,6 +300,12 @@ public final class Helper {
                     InputDevice.SOURCE_KEYBOARD);
             inject.invoke(inputManager, e, INJECT_WAIT_FOR_FINISH);
         }
+    }
+
+    /** Injects a prepared key event (used for typed text). */
+    static void injectKey(KeyEvent e) throws Exception {
+        if (e.getSource() == 0 || e.getSource() == InputDevice.SOURCE_UNKNOWN) e.setSource(InputDevice.SOURCE_KEYBOARD);
+        inject.invoke(inputManager, e, INJECT_WAIT_FOR_FINISH);
     }
 
     static void tap(int x, int y) throws Exception {

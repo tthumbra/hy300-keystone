@@ -1,26 +1,5 @@
-import CryptoKit
 import Foundation
 import KeystoneCore
-
-/// What the projector's QR code encodes: https://<ip>:8443/?k=<pairing code>&fp=<cert SHA-256>.
-struct ProjectorLink: Codable, Equatable {
-    var host: String
-    var port: Int
-    var pairCode: String
-    var fingerprint: String
-
-    init?(_ text: String) {
-        guard let c = URLComponents(string: text), c.scheme == "https", let host = c.host,
-              let k = c.queryItems?.first(where: { $0.name == "k" })?.value, !k.isEmpty,
-              let fp = c.queryItems?.first(where: { $0.name == "fp" })?.value, fp.count == 64 else { return nil }
-        self.host = host
-        self.port = c.port ?? 443
-        self.pairCode = k
-        self.fingerprint = fp.lowercased()
-    }
-
-    var baseURL: URL { URL(string: "https://\(host):\(port)")! }
-}
 
 struct ProjectorError: LocalizedError {
     let message: String
@@ -43,19 +22,8 @@ final class ProjectorClient: NSObject, URLSessionDelegate {
 
     func urlSession(_ session: URLSession, didReceive challenge: URLAuthenticationChallenge,
                     completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
-        guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust,
-              let trust = challenge.protectionSpace.serverTrust,
-              let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate], let leaf = chain.first else {
-            completionHandler(.performDefaultHandling, nil)
-            return
-        }
-        let der = SecCertificateCopyData(leaf) as Data
-        let hex = SHA256.hash(data: der).map { String(format: "%02x", $0) }.joined()
-        if hex == link.fingerprint {
-            completionHandler(.useCredential, URLCredential(trust: trust))
-        } else {
-            completionHandler(.cancelAuthenticationChallenge, nil)
-        }
+        let (disposition, credential) = PinnedTrust.evaluate(challenge, fingerprint: link.fingerprint)
+        completionHandler(disposition, credential)
     }
 
     // MARK: API
