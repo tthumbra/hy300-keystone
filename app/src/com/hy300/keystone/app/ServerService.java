@@ -210,7 +210,7 @@ public class ServerService extends Service {
     // ---------------------------------------------------------------- requests
 
     static final class Request {
-        String method, path, query = "";
+        String method, path, query = "", peer = "";
         final Map<String, String> headers = new HashMap<>();
         byte[] body = new byte[0];
 
@@ -252,6 +252,7 @@ public class ServerService extends Service {
             s.setSoTimeout(15000);
             Request req = parse(s.getInputStream());
             if (req == null) return;
+            req.peer = s.getInetAddress().getHostAddress();
             if (secure && RemoteRelay.isUpgrade(req)) {
                 if (!MessageDigest.isEqual(req.param("k").getBytes(), AppState.pairCode.getBytes())) {
                     write(s.getOutputStream(), Response.error(401, "bad pairing code"));
@@ -285,8 +286,10 @@ public class ServerService extends Service {
     private Response route(Request req) throws Exception {
         if (!req.path.startsWith("/api/")) {
             if (!req.method.equals("GET")) return Response.error(405, "method not allowed");
-            return staticFile("web", req.path.equals("/") ? "/index.html" : req.path);
+            String path = req.path.equals("/") ? "/index.html" : req.path.equals("/share") ? "/share.html" : req.path;
+            return staticFile("web", path);
         }
+        if (req.path.startsWith("/api/share/")) return routeShare(req);
 
         String given = req.headers.containsKey("x-pair") ? req.headers.get("x-pair") : req.param("k");
         if (!MessageDigest.isEqual(given.getBytes(), AppState.pairCode.getBytes()))
@@ -497,6 +500,57 @@ public class ServerService extends Service {
             for (int i = 0; i < files.length - 400; i++) files[i].delete();
         }
         return base;
+    }
+
+    private long lastPinRequest;
+
+    /**
+     * Laptop screen sharing (see ScreenShare): pairing with a PIN shown on the projector, then the
+     * laptop's WebRTC offer/answer (X-Share token) and the projector player's side (?t= player token).
+     */
+    private Response routeShare(Request req) throws Exception {
+        String route = req.method + " " + req.path;
+        JSONObject body = req.body.length > 0 ? new JSONObject(new String(req.body, StandardCharsets.UTF_8)) : new JSONObject();
+        switch (route) {
+            case "POST /api/share/request":
+                if (System.currentTimeMillis() - lastPinRequest < 5000) return Response.error(429, "Wait a moment and try again.");
+                lastPinRequest = System.currentTimeMillis();
+                return Response.json(200, ScreenShare.requestPin(this));
+            case "POST /api/share/pin":
+                return Response.json(200, ScreenShare.checkPin(this, body));
+            case "GET /api/share/check":
+                return Response.json(200, new JSONObject().put("ok", true)
+                        .put("paired", ScreenShare.isPaired(this, req.headers.get("x-share"))));
+            default:
+                break;
+        }
+        boolean player = MessageDigest.isEqual(req.param("t").getBytes(), ScreenShare.playerToken.getBytes());
+        switch (route) {
+            case "GET /api/share/pending":
+                if (!player) return Response.error(401, "player only");
+                return Response.json(200, ScreenShare.pendingOffer());
+            case "POST /api/share/player-answer":
+                if (!player) return Response.error(401, "player only");
+                return Response.json(200, ScreenShare.answer(body, lanAddress()));
+            case "POST /api/share/ended":
+                if (!player) return Response.error(401, "player only");
+                ScreenShare.stop(this);
+                return Response.json(200, new JSONObject().put("ok", true));
+            default:
+                break;
+        }
+        if (!ScreenShare.isPaired(this, req.headers.get("x-share"))) return Response.error(401, "This computer isn't paired — reload the page.");
+        switch (route) {
+            case "POST /api/share/offer":
+                return Response.json(200, ScreenShare.offer(this, body, req.peer));
+            case "GET /api/share/answer":
+                return Response.json(200, ScreenShare.pollAnswer(Long.parseLong(req.param("session"))));
+            case "POST /api/share/stop":
+                ScreenShare.stop(this);
+                return Response.json(200, new JSONObject().put("ok", true));
+            default:
+                return Response.error(404, "not found");
+        }
     }
 
     /** Brings up the calibration pattern (allowed from the background: the app has the overlay permission). */

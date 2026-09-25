@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>HY300 screen share</title>
+<style>
+  :root { --bg: #0e1116; --panel: #171b22; --line: #2a303a; --text: #e8ecf1; --muted: #98a2b0; --accent: #5aa9ff; --good: #5fd08f; --bad: #ff7a7a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; padding: 32px 16px; }
+  main { max-width: 520px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer; background: var(--accent); color: #06121f; }
+  button.secondary { background: #262c36; color: var(--text); }
+  button:disabled { opacity: .5; cursor: default; }
+  input { font: inherit; font-size: 1.6rem; letter-spacing: .4em; width: 8ch; text-align: center; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: #0b0e12; color: var(--text); }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  label { color: var(--muted); font-size: .95rem; }
+  select { font: inherit; padding: 8px; border-radius: 8px; background: #0b0e12; color: var(--text); border: 1px solid var(--line); }
+  #status { margin-top: 12px; font-size: .95rem; color: var(--muted); }
+  #status.good { color: var(--good); } #status.bad { color: var(--bad); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Share to the HY300</h1>
+  <p class="sub">Shows a tab, a window or your whole screen on the projector, over your Wi-Fi.</p>
+
+  <div class="card hidden" id="pairCard">
+    <p style="margin-top:0">Pair this computer once: the projector will show a 4-digit PIN in its corner.</p>
+    <div class="row" id="pinAsk"><button id="pairBtn">Show PIN on the projector</button></div>
+    <div class="row hidden" id="pinEntry">
+      <input id="pin" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="····">
+      <button id="pinBtn">Pair</button>
+    </div>
+  </div>
+
+  <div class="card hidden" id="shareCard">
+    <div class="row" style="justify-content:space-between">
+      <label>Optimise for
+        <select id="mode"><option value="motion">Video (smooth)</option><option value="detail">Text (sharp)</option></select>
+      </label>
+      <div class="row">
+        <button id="shareBtn">Share</button>
+        <button class="secondary hidden" id="stopBtn">Stop</button>
+      </div>
+    </div>
+    <p class="sub" style="margin:12px 0 0;font-size:.88rem">Tip: to include sound, share a Chrome/Edge tab and tick "Share tab audio", or share your entire screen with "Share system audio".</p>
+  </div>
+
+  <div id="status"></div>
+</main>
+<script>
+(function () {
+  'use strict';
+  var KEY = 'hy300-share-token';
+  var token = null, request = null, pc = null, stream = null, session = null;
+  try { token = localStorage.getItem(KEY); } catch (e) {}
+  var $ = function (id) { return document.getElementById(id); };
+
+  function status(text, kind) { $('status').textContent = text; $('status').className = kind || ''; }
+
+  function api(path, body, method) {
+    return fetch(path, {
+      method: method || (body === undefined ? 'GET' : 'POST'),
+      headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { 'X-Share': token } : {}),
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok || j.ok === false) throw new Error(j.error || ('HTTP ' + r.status));
+        return j;
+      });
+    });
+  }
+
+  function showPair() { $('pairCard').classList.remove('hidden'); $('shareCard').classList.add('hidden'); }
+  function showShare() { $('pairCard').classList.add('hidden'); $('shareCard').classList.remove('hidden'); }
+
+  // ---- pairing
+  $('pairBtn').onclick = function () {
+    api('/api/share/request', {}).then(function (r) {
+      request = r.request;
+      $('pinAsk').classList.add('hidden');
+      $('pinEntry').classList.remove('hidden');
+      $('pin').focus();
+      status('Enter the PIN shown in the corner of the projector.');
+    }).catch(function (e) { status(e.message, 'bad'); });
+  };
+  $('pinBtn').onclick = function () {
+    api('/api/share/pin', { request: request, pin: $('pin').value }).then(function (r) {
+      token = r.token;
+      try { localStorage.setItem(KEY, token); } catch (e) {}
+      status('Paired. You can share now.', 'good');
+      showShare();
+    }).catch(function (e) {
+      status(e.message, 'bad');
+      if (/expired|Too many/.test(e.message)) { $('pinAsk').classList.remove('hidden'); $('pinEntry').classList.add('hidden'); }
+    });
+  };
+  $('pin').addEventListener('keydown', function (e) { if (e.key === 'Enter') $('pinBtn').click(); });
+
+  // ---- sharing
+  function iceComplete(p) {
+    return new Promise(function (res) {
+      if (p.iceGatheringState === 'complete') return res();
+      p.addEventListener('icegatheringstatechange', function () { if (p.iceGatheringState === 'complete') res(); });
+      setTimeout(res, 3000);
+    });
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  $('shareBtn').onclick = function () {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      status('This browser can\'t share its screen here. Use Chrome or Edge on a computer.', 'bad');
+      return;
+    }
+    // The projector's picture is 1280x720, so capture at most that: less to encode and decode.
+    navigator.mediaDevices.getDisplayMedia({
+      video: { width: { max: 1280 }, height: { max: 720 }, frameRate: { ideal: 30, max: 30 } },
+      audio: true,
+    }).then(start).catch(function (e) {
+      if (e.name !== 'NotAllowedError') status('Could not share: ' + e.message, 'bad');
+    });
+  };
+
+  function start(s) {
+    stream = s;
+    var video = s.getVideoTracks()[0];
+    video.contentHint = $('mode').value;
+    video.addEventListener('ended', stop);
+    pc = new RTCPeerConnection({ iceServers: [] });
+    s.getTracks().forEach(function (t) { pc.addTrack(t, s); });
+    // Prefer H.264: the projector decodes it in hardware.
+    pc.getTransceivers().forEach(function (tr) {
+      if (!tr.sender.track || tr.sender.track.kind !== 'video' || !tr.setCodecPreferences || !RTCRtpSender.getCapabilities) return;
+      var codecs = RTCRtpSender.getCapabilities('video').codecs;
+      var h264 = codecs.filter(function (c) { return /h264/i.test(c.mimeType); });
+      try { tr.setCodecPreferences(h264.concat(codecs.filter(function (c) { return !/h264/i.test(c.mimeType); }))); } catch (e) {}
+    });
+    pc.addEventListener('connectionstatechange', function () {
+      var st = pc && pc.connectionState;
+      if (st === 'connected') status('Sharing to the projector.', 'good');
+      else if (st === 'failed') { status('The connection to the projector failed.', 'bad'); stop(); }
+    });
+    $('shareBtn').classList.add('hidden');
+    $('stopBtn').classList.remove('hidden');
+    status('Connecting to the projector…');
+
+    pc.createOffer().then(function (o) { return pc.setLocalDescription(o); })
+      .then(function () { return iceComplete(pc); })
+      .then(function () { return api('/api/share/offer', { sdp: pc.localDescription.sdp }); })
+      .then(function (r) { session = r.session; return waitForAnswer(r.session); })
+      .then(function (sdp) { return pc.setRemoteDescription({ type: 'answer', sdp: sdp }); })
+      .then(tuneSender)
+      .catch(function (e) { status('Could not share: ' + e.message, 'bad'); stop(); });
+  }
+
+  function waitForAnswer(s) {
+    var tries = 0;
+    return (function poll() {
+      return api('/api/share/answer?session=' + s).then(function (r) {
+        if (r.sdp) return r.sdp;
+        if (r.replaced) throw new Error('another share started');
+        if (++tries > 60) throw new Error('the projector didn\'t answer');
+        return sleep(400).then(poll);
+      });
+    })();
+  }
+
+  function tuneSender() {
+    pc.getSenders().forEach(function (sender) {
+      if (!sender.track || sender.track.kind !== 'video') return;
+      var p = sender.getParameters();
+      if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+      p.encodings[0].maxBitrate = 6000000;
+      p.encodings[0].maxFramerate = 30;
+      p.degradationPreference = $('mode').value === 'detail' ? 'maintain-resolution' : 'balanced';
+      sender.setParameters(p).catch(function () {});
+    });
+  }
+
+  function stop() {
+    if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+    if (pc) pc.close();
+    stream = null; pc = null;
+    if (session !== null) { api('/api/share/stop', {}).catch(function () {}); session = null; }
+    $('shareBtn').classList.remove('hidden');
+    $('stopBtn').classList.add('hidden');
+    if (!/failed|Could not/.test($('status').textContent)) status('Stopped.');
+  }
+  $('stopBtn').onclick = stop;
+  window.addEventListener('pagehide', function () { if (pc) stop(); });
+
+  // ---- start
+  if (!window.isSecureContext) status('Open this page through https (the address the projector shows).', 'bad');
+  if (!token) { showPair(); }
+  else api('/api/share/check').then(function (r) {
+    if (r.paired) showShare();
+    else { token = null; try { localStorage.removeItem(KEY); } catch (e) {} showPair(); }
+  }).catch(function (e) { status(e.message, 'bad'); showPair(); });
+})();
+</script>
+</body>
+</html>

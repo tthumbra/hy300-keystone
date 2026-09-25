@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HY300 screen share player</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  video { width: 100vw; height: 100vh; object-fit: contain; background: #000; }
+  #msg { position: fixed; left: 0; right: 0; bottom: 8%; text-align: center; color: #aab4be; font: 22px system-ui, sans-serif; }
+</style>
+</head>
+<body>
+<video id="v" autoplay playsinline></video>
+<div id="msg">Connecting to the computer…</div>
+<script>
+// Runs in the projector's WebView (ShareActivity): answers the laptop's WebRTC offer and plays it.
+(function () {
+  'use strict';
+  var t = new URLSearchParams(location.search).get('t') || '';
+  var video = document.getElementById('v'), msg = document.getElementById('msg');
+  var pc = null, session = -1, lostTimer = null;
+
+  function api(path, body) {
+    var url = path + (path.indexOf('?') < 0 ? '?' : '&') + 't=' + t;
+    return fetch(url, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }).then(function (r) { return r.json(); });
+  }
+
+  function iceComplete(p) {
+    return new Promise(function (res) {
+      if (p.iceGatheringState === 'complete') return res();
+      p.addEventListener('icegatheringstatechange', function () { if (p.iceGatheringState === 'complete') res(); });
+      setTimeout(res, 3000);
+    });
+  }
+
+  function ended() {
+    if (pc) pc.close();
+    pc = null;
+    api('/api/share/ended', {});
+  }
+
+  function answer(offerSdp, s) {
+    if (pc) pc.close();
+    session = s;
+    msg.textContent = 'Connecting to the computer…';
+    msg.style.display = '';
+    var p = pc = new RTCPeerConnection({ iceServers: [] });
+    p.addEventListener('track', function (e) {
+      if (video.srcObject !== e.streams[0]) { video.srcObject = e.streams[0]; video.play().catch(function () {}); }
+    });
+    p.addEventListener('connectionstatechange', function () {
+      if (p !== pc) return;
+      var st = p.connectionState;
+      if (st === 'connected') { msg.style.display = 'none'; clearTimeout(lostTimer); }
+      else if (st === 'failed' || st === 'closed') ended();
+      else if (st === 'disconnected') {
+        clearTimeout(lostTimer);
+        lostTimer = setTimeout(function () { if (p === pc && p.connectionState !== 'connected') ended(); }, 5000);
+      }
+    });
+    p.setRemoteDescription({ type: 'offer', sdp: offerSdp })
+      .then(function () { return p.createAnswer(); })
+      .then(function (a) { return p.setLocalDescription(a); })
+      .then(function () { return iceComplete(p); })
+      .then(function () { return api('/api/share/player-answer', { session: s, sdp: p.localDescription.sdp }); })
+      .catch(function (e) { msg.textContent = 'Could not connect: ' + e.message; });
+  }
+
+  // Keep checking for an offer (the first one, or a new share replacing the current one).
+  (function poll() {
+    api('/api/share/pending').then(function (r) {
+      if (r.sdp && r.session !== session) answer(r.sdp, r.session);
+    }).catch(function () {}).then(function () { setTimeout(poll, 400); });
+  })();
+})();
+</script>
+</body>
+</html>

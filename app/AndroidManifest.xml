@@ -32,6 +32,13 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ShareActivity"
+            android:exported="false"
+            android:launchMode="singleTask"
+            android:screenOrientation="landscape"
+            android:theme="@android:style/Theme.NoTitleBar.Fullscreen" />
+
         <service android:name=".ServerService" android:exported="false" />
 
         <receiver android:name=".BootReceiver" android:exported="true">
