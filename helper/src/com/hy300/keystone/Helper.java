@@ -78,6 +78,7 @@ public final class Helper {
 
         if (!token.isEmpty()) RemoteInput.start(token);   // phone-as-remote input, relayed by the app
         ServerSocket server = new ServerSocket(port, 8, InetAddress.getByName("127.0.0.1"));
+        AutoMouse.start();                                // remote pointer while Netflix is in front
         log("listening on 127.0.0.1:" + port + " state=" + state());
         while (true) {
             Socket s = server.accept();
