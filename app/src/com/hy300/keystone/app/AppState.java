@@ -12,7 +12,7 @@ final class AppState {
     interface Listener { void onStateChanged(); }
 
     static volatile Mode mode = Mode.QR;
-    static volatile String pairUrl = "";   // https://ip:8443/?k=pairCode&fp=certSha256 (the phone page / iOS app)
+    static volatile String pairUrl = "";   // http://ip:8080/?k=pairCode&fp=certSha256&tls=8443 (the phone page / iOS app)
     static volatile String pairCode = "";
     static volatile boolean helperUp = false;
     static volatile String helperStatus = "starting…";

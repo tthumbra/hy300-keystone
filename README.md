@@ -11,6 +11,7 @@ the result (including after a restart) like any keystone set from its menu.
 | --- | --- |
 | `app/` | Projector app (Java, no Gradle). Shows a QR code, then the calibration pattern; serves the phone web page and API over HTTPS with a self-signed certificate it makes itself. |
 | `helper/` | Runs on the projector as the `shell` user (`app_process`), started by the app through the projector's own adb on `127.0.0.1:5555`. Applies keystone values by writing `persist.display.keystone_*` and nudging ControlCenter's 4-corner screen, which is the only thing allowed to push them to SurfaceFlinger. |
+| `lanstream-tv/` | Projector app "LAN Stream": finds the LAN Stream video server on the Wi-Fi (or takes a typed address) and plays its videos with the projector's own player, driven by the remote. Build with `lanstream-tv/build.sh`. |
 | `app/assets/web/` | Phone web pages (any phone, no install). `index.html` is what the QR opens: a remote (touchpad, arrows, volume, typing). `keystone.html` is the calibration: live camera + motion sensors, finds the picture, corrects in a level virtual camera. |
 | `ios/` | iPhone app **HY300** with two tabs: **Remote** turns the phone into a trackpad, keyboard and remote; **Keystone** (SwiftUI + ARKit) measures the picture's corners on the wall in 3D with LiDAR, so the phone's angle doesn't matter. |
 | `MAPPING.md` | How the 8 keystone values map to corners, per projection mode. |

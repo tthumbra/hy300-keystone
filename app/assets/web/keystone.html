@@ -143,7 +143,11 @@
     </details>
   </div>
 
-  <script>document.getElementById('remoteLink').href = './' + location.search;</script>
+  <script>
+    // Back to the remote over plain HTTP when the link came from there (keeps one page for everyone).
+    document.getElementById('remoteLink').href =
+      (new URLSearchParams(location.search).get('tls') ? 'http://' + location.hostname + ':8080/' : './') + location.search;
+  </script>
   <script src="keystone.js"></script>
   <script src="app.js"></script>
 </body>

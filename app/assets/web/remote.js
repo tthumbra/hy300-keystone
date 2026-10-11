@@ -148,6 +148,9 @@
     if (e.key === 'Enter') { e.preventDefault(); send('k 66'); text.value = sent = ''; }
   });
 
-  if (pair) $('keystoneLink').href = 'keystone.html' + location.search;
+  // The calibration page needs the camera, which browsers only allow over HTTPS (the "tls" port).
+  var tls = new URLSearchParams(location.search).get('tls') || '8443';
+  $('keystoneLink').href = (location.protocol === 'https:' ? '' : 'https://' + location.hostname + ':' + tls + '/')
+    + 'keystone.html' + location.search;
   connect();
 })();

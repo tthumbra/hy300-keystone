@@ -4,6 +4,7 @@
 # Build output
 app/out/
 helper/out/
+lanstream-tv/out/
 ios/.build/
 ios/build/
 ios/Payload/

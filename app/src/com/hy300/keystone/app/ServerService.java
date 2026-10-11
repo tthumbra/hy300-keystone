@@ -131,10 +131,12 @@ public class ServerService extends Service {
         long nextHelperAttempt = 0;
         while (running) {
             String ip = lanAddress();
-            // fp: certificate fingerprint for the iOS app to pin (the web page ignores it). Left out until the
-            // HTTPS server has loaded the certificate.
+            // Plain HTTP, so a guest's phone opens the remote page without a certificate warning. The iOS app
+            // and the calibration page use HTTPS on the "tls" port; fp is the certificate fingerprint the iOS
+            // app pins. Left out until the HTTPS server has loaded the certificate.
             String fp = SelfSignedCert.fingerprint;
-            String pair = ip == null || fp.isEmpty() ? "" : "https://" + ip + ":" + HTTPS_PORT + "/?k=" + AppState.pairCode + "&fp=" + fp;
+            String pair = ip == null || fp.isEmpty() ? "" : "http://" + ip + ":" + HTTP_PORT + "/?k=" + AppState.pairCode
+                    + "&fp=" + fp + "&tls=" + HTTPS_PORT;
             if (!pair.equals(AppState.pairUrl)) {
                 Log.i(TAG, "pairing link: " + pair);
                 AppState.pairUrl = pair;
@@ -253,7 +255,7 @@ public class ServerService extends Service {
             Request req = parse(s.getInputStream());
             if (req == null) return;
             req.peer = s.getInetAddress().getHostAddress();
-            if (secure && RemoteRelay.isUpgrade(req)) {
+            if (RemoteRelay.isUpgrade(req)) {
                 if (!MessageDigest.isEqual(req.param("k").getBytes(), AppState.pairCode.getBytes())) {
                     write(s.getOutputStream(), Response.error(401, "bad pairing code"));
                     return;
@@ -263,7 +265,7 @@ public class ServerService extends Service {
             }
             Response res;
             try {
-                res = secure ? route(req) : redirect(req);
+                res = secure || isRemotePage(req) ? route(req) : redirect(req);
             } catch (Exception e) {
                 Log.e(TAG, "handler", e);
                 res = Response.error(500, String.valueOf(e.getMessage()));
@@ -272,6 +274,17 @@ public class ServerService extends Service {
         } catch (Exception e) {
             Log.w(TAG, "connection: " + e);
         }
+    }
+
+    /**
+     * The remote page and its script are also served over plain HTTP (with the remote WebSocket), so the
+     * QR opens without a certificate warning. Everything else needs HTTPS: the calibration page for the
+     * camera, screen sharing for screen capture, and the API so the pairing code isn't sent in the clear
+     * more than the remote needs.
+     */
+    private static boolean isRemotePage(Request req) {
+        return req.method.equals("GET")
+                && (req.path.equals("/") || req.path.equals("/index.html") || req.path.equals("/remote.js"));
     }
 
     private Response redirect(Request req) {
